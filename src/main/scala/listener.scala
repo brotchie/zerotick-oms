@@ -1,3 +1,9 @@
+/*   ____  __  __ ___                                           *\
+**  / _//\|  \/  / __|   zerotick-oms - The Minimalist Order    **
+** | (//) | |\/| \__ \                  Management System       **
+**  \//__/|_|  |_|___/   Copyright (c) 2012, James Brotchie     **
+\*                       http://zerotick.org/                   */
+
 package zerotick.ib
 
 import java.io.ByteArrayInputStream
