@@ -36,7 +36,9 @@ object TWSListener {
   * IB API messages and forwards them to a recipient
   * actor.
   */
-class TWSListener() extends Actor with FSM[TWSListener.State, TWSListener.Data]{
+class TWSListener() extends Actor 
+                    with FSM[TWSListener.State, TWSListener.Data]{
+
   import TWSListener._
 
   startWith(Idle, Uninitialized)
@@ -51,21 +53,29 @@ class TWSListener() extends Actor with FSM[TWSListener.State, TWSListener.Data]{
     }
 
     // These events are ignored when in Idle state.
-    case Event(RemoveRecipient | Connecting | _: ZMQMessage, _) => stay
+    case Event( RemoveRecipient
+              | Connecting
+              | IBMessage(_)
+              , _) => stay
   }
 
   when(Forwarding) {
-    case Event(msg: ZMQMessage, Reader(reader)) => {
-      reader.processMsg(msg.payload(0))
-      stay
-    }
-    case Event(RemoveRecipient, _) => goto(Idle) using Uninitialized
-    case Event(Connecting, _) => stay
+    case Event(IBMessage(msg) , Reader(reader)) => { reader.processMsg(msg); stay }
+    case Event(RemoveRecipient, _)              => goto(Idle) using Uninitialized
+    case Event(Connecting     , _)              => stay
   }
 
   initialize
 }
 
+/** Extractor for IB API ZeroMQ messages. */
+object IBMessage {
+  def apply(payload: Array[Byte]) = ZMQMessage(payload)
+
+  /** Extracts the first frame from a ZMQMessage as Array[Byte]. */
+  def unapply(msg: ZMQMessage): Option[Array[Byte]] =
+    if (msg.frames.length == 1) Some(msg.payload(0)) else None
+}
 
 class EReader( socket: client.EClientSocket
              , stream: io.ReplaceableDataInputStream = new io.ReplaceableDataInputStream())
