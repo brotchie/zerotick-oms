@@ -35,7 +35,8 @@ object Main extends App {
   // The TWSListener actor accepts ZeroMQ messages containing
   // IB API messages, parses them, then sends the parsed
   // messages to the given actor.
-  val listener = system.actorOf(Props(new TWSListener(printer)))
+  val listener = system.actorOf(Props(new TWSListener()))
+  listener ! TWSListener.SetRecipient(printer)
 
   // Connect to the ib-zmq proxy broadcast endpoint.
   val subsocket = ZeroMQExtension(system).newSocket( SocketType.Sub

@@ -13,20 +13,57 @@ import com.ib.client
 import akka.actor._
 import akka.zeromq._
 
+object TWSListener {
+  sealed trait State
+  /** Listener is idle. Not IB API messages will be forwarded. */
+  case object Idle extends State
+  /** Listener has a valid recipient and is forwarding IB API messages. */
+  case object Forwarding extends State
+
+  sealed trait Data
+  /** Listener is uninitialized. */
+  case object Uninitialized extends Data
+  /** Listener decodes ZeroMQ messages with the EReader object. */
+  case class Reader(reader: EReader) extends Data
+
+  /** Sets the recipient actor who will receive decoded IB API messages. */
+  case class SetRecipient(recipient: ActorRef)
+  /** Removes any existing recipient, reutrning listener state to idle. */
+  case object RemoveRecipient 
+}
+
 /** An actor that decodes ZeroMQ delivered
   * IB API messages and forwards them to a recipient
   * actor.
-  *
-  * @constructor creates a new listener with target recipient.
-  * @param recipient the actor to receive IB API messages.
   */
-class TWSListener(recipient: ActorRef) extends Actor {
-  val clientSocket = new client.EClientSocket(new EWrapper(recipient))
-  val reader = new EReader(clientSocket)
+class TWSListener() extends Actor with FSM[TWSListener.State, TWSListener.Data]{
+  import TWSListener._
 
-  def receive = {
-    case message: ZMQMessage => reader.processMsg(message.payload(0))
+  startWith(Idle, Uninitialized)
+
+  when(Idle) {
+    case Event(SetRecipient(recipient), Uninitialized) => {
+      val wrapper       = new EWrapper(recipient)
+      val clientSocket  = new client.EClientSocket(wrapper)
+      val reader        = new EReader(clientSocket)
+
+      goto(Forwarding) using Reader(reader)
+    }
+
+    // These events are ignored when in Idle state.
+    case Event(RemoveRecipient | Connecting | _: ZMQMessage, _) => stay
   }
+
+  when(Forwarding) {
+    case Event(msg: ZMQMessage, Reader(reader)) => {
+      reader.processMsg(msg.payload(0))
+      stay
+    }
+    case Event(RemoveRecipient, _) => goto(Idle) using Uninitialized
+    case Event(Connecting, _) => stay
+  }
+
+  initialize
 }
 
 
